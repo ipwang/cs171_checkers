@@ -48,23 +48,6 @@ FROM discord
     import copy and do copydeepcopy(self.board): or use board.undo
 """
 
-"""
-Proposal for Minimal Pseudocode (MCTS expanded down 1 layer: NOT IDEAL):
-every iteration/time getMove is called
-    - save start time
-    - receive opponent's last move and new board
-    - return this player's move
-make root node
-get all moves from root node (current board) for this player
-for each move this player could make:
-    EXPANSION: make new nodes from root node (children): store move with corresponding updated board
-for each child node
-    SIMULATION: do once; choose random moves until termination
-    get end time, compare to start to see if need to stop
-    store number of wins for root node (NOT CHILD) as a fraction out of 50 in child node
-from root node, return move of child wih highest fraction (move and fraction saved in children node)
-"""
-
 class StudentAI():
     def __init__(self,col,row,p):
         self.col = col
@@ -76,7 +59,6 @@ class StudentAI():
         self.opponent = {1:2,2:1}
         self.color = 2
 
-        #TODO: keep track of a single board and single tree the whole time
         self.root = Node(self.color, -1)
         self.start = None
 
