@@ -95,7 +95,7 @@ class StudentAI():
 
     def isTimeLeft(self):
         time = datetime.datetime.now()
-        if (time - self.start).seconds < turnTimer: #TODO Change 15 seconds to something smaller when debugging
+        if (time - self.start).seconds < turnTimer:
             return True
         return False
 
@@ -106,7 +106,7 @@ class StudentAI():
         for m in moves:
             found = False
             for n in node.children:
-                if not found and n.move.seq == m.seq: #TODO CHANGED
+                if not found and n.move.seq == m.seq:
                     found = True
             if not found:
                 return m
@@ -132,7 +132,7 @@ class StudentAI():
         found = False
 
         while len(ptr.children) != 0: #Node is not a leaf node
-            moves = self.flatten(self.board.get_all_possible_moves(self.color))
+            moves = self.flatten(self.board.get_all_possible_moves(ptr.color))
             for m in moves:
                 found = False
                 for c in ptr.children:
@@ -145,10 +145,10 @@ class StudentAI():
                 if not found:
                     return ptr #Node is a leaf node, return parent to expand later
 
-            ptr = maxNode
-            self.color = self.opponent[self.color]
+            # self.color = self.opponent[self.color]
             if maxNode.move != -1:
-                self.board.make_move(maxNode.move, self.color)
+                self.board.make_move(maxNode.move, ptr.color)
+            ptr = maxNode
 
         # Node is leaf node
         return ptr #Same thing as line 135
@@ -171,22 +171,25 @@ class StudentAI():
         players = {1: "B", 2: "W"}
         winner = None
         counter = 0
+        color = child.color
 
-        #self.color = child.color #prob dont need this line but just in case
-        while self.board.is_win(players[self.color]) == 0:
-            moves = self.flatten(self.board.get_all_possible_moves(self.color))
+        #self.color = child.color #prob dont need
+        while self.board.is_win(players[color]) == 0:
+            moves = self.flatten(self.board.get_all_possible_moves(color))
             if len(moves) != 0: #player has moves
                 i = randint(0, len(moves) - 1)
-                self.board.make_move(moves[i], self.color)
-                self.color = self.opponent[self.color]
+                self.board.make_move(moves[i], color)
+                # self.color = self.opponent[self.color]
+                color = self.opponent[color]
                 counter += 1
             else: #player doesnt have moves, but game hasn't ended yet
-                self.color = self.opponent[self.color]
+                #self.color = self.opponent[self.color]
+                color = self.opponent[color]
 
-        winner = self.board.is_win(players[self.color])
+        winner = self.board.is_win(players[color])
         while counter != 0:
             self.board.undo()
-            self.color = self.opponent[self.color]
+            #self.color = self.opponent[self.color]
             counter -= 1
         return winner
 
@@ -245,7 +248,7 @@ class StudentAI():
 
         else:
             self.color = 1
-            self.root.color = 1                                     #Opponent couldn't make a move, pass
+            self.root.color = 1
 
         self.start = datetime.datetime.now()
         """
@@ -262,10 +265,10 @@ class StudentAI():
                 i += 1
             self.root = self.root.children[i]
         """
-        moves = self.flatten(self.board.get_all_possible_moves(self.color))
+        moves = self.flatten(self.board.get_all_possible_moves(self.root.color))
         move = self.MCTS(moves)
 
-        self.board.make_move(move, self.color) # PROBLEM LINE: color mismatch
+        self.board.make_move(move, self.root.color) # PROBLEM LINE: color mismatch
         # update root to move just picked from MCTS
         i = 0
         while i != len(self.root.children):
