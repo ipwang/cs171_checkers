@@ -8,6 +8,7 @@ from BoardClasses import Board
 import datetime
 import math
 
+turnTimer = 15
 exploreConst = 1.4
 simThreshold = 5
 defaultWins = 1
@@ -94,7 +95,7 @@ class StudentAI():
 
     def isTimeLeft(self):
         time = datetime.datetime.now()
-        if (time - self.start).seconds < 10: #TODO Change 15 seconds to something smaller when debugging
+        if (time - self.start).seconds < turnTimer: #TODO Change 15 seconds to something smaller when debugging
             return True
         return False
 
@@ -105,7 +106,7 @@ class StudentAI():
         for m in moves:
             found = False
             for n in node.children:
-                if not found and n.move == m:
+                if not found and n.move.seq == m.seq: #TODO CHANGED
                     found = True
             if not found:
                 return m
@@ -205,31 +206,43 @@ class StudentAI():
             result = self.simulate(expand)
             self.backProp(result, expand)
 
-#TODO CHECK THIS
-        bestChild = None
-        bestWR = 0
-        i = 0
-        while i != len(self.root.children):
-            if self.root.children[i].getWinRate() > bestWR:
-                bestWR = self.root.children[i].getWinRate()
-                bestChild = self.root.children[i]
-            i += 1
+        bestMove = None # self.root.children[i].move
 
-        return bestChild.move
+        if len(self.root.children) == 0:# TODO ADDED
+            index = randint(0, len(moves) - 1)
+            bestMove = moves[index]
+        else:
+            bestWR = -1
+            i = 0
+            while i != len(self.root.children):
+                if self.root.children[i].getWinRate() > bestWR:
+                    bestWR = self.root.children[i].getWinRate()
+                    bestMove = self.root.children[i].move
+                i += 1
+
+        return bestMove
         #return the move in Actions(state) whose node has highest number of playouts highest w/s
 
     def get_move(self,move):
         if len(move) != 0:
             self.board.make_move(move,self.opponent[self.color])
-            if self.root.parent is None: #len(self.root.children) == 0
-                self.root = Node(move, self.opponent[self.color])
+            if self.root.parent is None: # len(self.root.children) == 0:
+                #what if the root.children doesnt contain the one move we wanted?
+                # FIX: checking len of self.root.children to moves of self.root
+                self.root.move = move
             else:
                 i = 0
                 while i != len(self.root.children):
                     if self.root.children[i].move == move:
                         break
                     i += 1
-                self.root = self.root.children[i]
+                if i != len(self.root.children):
+                    self.root = self.root.children[i]
+                else: #no child node: add it
+                    new_root = Node(self.color, move, self.root)
+                    self.root.children.append(new_root)
+                    self.root = new_root
+
         else:
             self.color = 1
             self.root.color = 1                                     #Opponent couldn't make a move, pass
@@ -252,6 +265,7 @@ class StudentAI():
         moves = self.flatten(self.board.get_all_possible_moves(self.color))
         move = self.MCTS(moves)
 
+        self.board.make_move(move, self.color) # PROBLEM LINE: color mismatch
         # update root to move just picked from MCTS
         i = 0
         while i != len(self.root.children):
@@ -259,23 +273,8 @@ class StudentAI():
                 break
             i += 1
         self.root = self.root.children[i]
-
-        self.board.make_move(move, self.color)
-
+#        self.color = self.opponent[self.color]
         return move
-
-"""
-start at root (first players move)
-REPEAT: check the time
-select: first time: root
-R
-A, B, C, D
-expand: first time: expand all children of R
-simulate: first time: choose one A-D using UCT/UCB formula: choose random move until termination:
-back: termination, go up children using parent pointer (while also Board.undo()), update w, s in each node
-"""
-
-
 
 # OLD SELECT TODO
 """
