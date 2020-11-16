@@ -62,18 +62,7 @@ class Node():
         if self.sims < simThreshold:
             return defaultSims
         return self.sims
-"""
-FROM discord
-    - 3 second timer: 300-600 playouts (low at start, peaks towards ends)
-    heuristics implemented in simulation part, selection part (defined by UCB in book)
-        heuristic could be num pieces for each side: use board.white_count and black_count()
-    each node: game state/board object (not very memory efficient)
-    want to limit depth, or will regret
-    - avg ~50 moves per game on 8x8 board, ~25 moves/player; 19 sec to make move: play safe and use 15
-    - EXPANSION start: add root of tree and all its children, 
-    - keep track of one board at a time, use board has undo function
-    import copy and do copydeepcopy(self.board): or use board.undo
-"""
+
 
 class StudentAI():
     def __init__(self,col,row,p):
@@ -100,30 +89,6 @@ class StudentAI():
         return False
 
 
-    def chooseMove(self, node) -> Move: #Given a node with a potential leaf, return that leaf node if it's not already part of the official children
-        found = False
-        moves = self.flatten(self.board.get_all_possible_moves(node.color))
-        for m in moves:
-            found = False
-            for n in node.children:
-                if not found and n.move.seq == m.seq:
-                    found = True
-            if not found:
-                return m
-
-        """
-        if len(moves) != 0:
-            # move is possible
-            i = randint(0, len(moves) - 1)
-            self.board.make_move(moves[i], self.color)
-            self.color = self.opponent[node.color]
-            return moves[i]
-        else:
-            # move is not possible, just change the color w/o changing board
-            self.color = self.opponent[self.color]
-            return None
-        """
-
     def select(self) -> Node: #REMINDER: moves is the flattened list of all available moves
         maxNode = self.root
         maxUct = -1
@@ -145,7 +110,6 @@ class StudentAI():
                 if not found:
                     return ptr #Node is a leaf node, return parent to expand later
 
-            # self.color = self.opponent[self.color]
             if maxNode.move != -1:
                 self.board.make_move(maxNode.move, ptr.color)
             ptr = maxNode
@@ -155,15 +119,19 @@ class StudentAI():
 
 
     def expand(self, node) -> Node:
-        child = None
-        moveToMake = self.chooseMove(node)
-        if moveToMake is None:
-            #moveToMake didn't have options TODO
-            pass
-        else:
-            #moveToMake was valid and returned a Move object and updated board
-            child = Node(self.opponent[node.color], moveToMake, node)
-            node.children.append(child) #This line actually adds children to a node
+        moves = self.flatten(self.board.get_all_possible_moves(node.color))
+        toMove = moves[0]
+
+        childrenMoves = []
+        for c in node.children:
+            childrenMoves.append(c.move.seq)
+        for m in moves:
+            if childrenMoves.count(m.seq) == 0:
+                toMove = m
+                break
+
+        child = Node(self.opponent[node.color], toMove, node)
+        node.children.append(child)
         return child
 
 
@@ -173,23 +141,19 @@ class StudentAI():
         counter = 0
         color = child.color
 
-        #self.color = child.color #prob dont need
         while self.board.is_win(players[color]) == 0:
             moves = self.flatten(self.board.get_all_possible_moves(color))
             if len(moves) != 0: #player has moves
                 i = randint(0, len(moves) - 1)
                 self.board.make_move(moves[i], color)
-                # self.color = self.opponent[self.color]
                 color = self.opponent[color]
                 counter += 1
             else: #player doesnt have moves, but game hasn't ended yet
-                #self.color = self.opponent[self.color]
                 color = self.opponent[color]
 
         winner = self.board.is_win(players[color])
         while counter != 0:
             self.board.undo()
-            #self.color = self.opponent[self.color]
             counter -= 1
         return winner
 
@@ -210,8 +174,7 @@ class StudentAI():
             self.backProp(result, expand)
 
         bestMove = None # self.root.children[i].move
-
-        if len(self.root.children) == 0:# TODO ADDED
+        if len(self.root.children) == 0:
             index = randint(0, len(moves) - 1)
             bestMove = moves[index]
         else:
@@ -224,11 +187,12 @@ class StudentAI():
                 i += 1
 
         return bestMove
-        #return the move in Actions(state) whose node has highest number of playouts highest w/s
+
 
     def get_move(self,move):
         if len(move) != 0:
             self.board.make_move(move,self.opponent[self.color])
+
             if self.root.parent is None: # len(self.root.children) == 0:
                 #what if the root.children doesnt contain the one move we wanted?
                 # FIX: checking len of self.root.children to moves of self.root
@@ -251,20 +215,6 @@ class StudentAI():
             self.root.color = 1
 
         self.start = datetime.datetime.now()
-        """
-        if self.root.move == -1:
-            #no move was made previously (ie first player's turn) TODO check if opponent got stuck
-            #do MCTS normally
-            pass
-        else:
-            #update root to move just picked from opponent if move exists
-            i = 0
-            while i != len(self.root.children):
-                if self.root.children[i].move == move:
-                    break
-                i += 1
-            self.root = self.root.children[i]
-        """
         moves = self.flatten(self.board.get_all_possible_moves(self.root.color))
         move = self.MCTS(moves)
 
@@ -278,31 +228,3 @@ class StudentAI():
         self.root = self.root.children[i]
 #        self.color = self.opponent[self.color]
         return move
-
-# OLD SELECT TODO
-"""
-child = None
-result = None
-
-#expand all children from ROOT only
-
-if len(self.root.children) != len(moves): #TODO: update so if only has some children, gets all
-    for m in moves:
-        for n in self.root.children:
-            if moves
-            child = self.root.children.append(Node(self.opponent[self.color], m, self.root))
-            result = self.simulate(child) #TODO check
-            self.backProp(result, child)
-
-
-#go to a leaf node randomly TODO UCT/UCB instead
-leaf = self.root
-leafIndex = None
-while len(leaf.children) != 0:
-    leafIndex = randint(0, len(moves)-1)
-    leaf = leaf.children[leafIndex]
-    self.board.make_move(leaf.move, self.color)
-    self.color = self.opponent[self.color]
-return leaf
-"""
-
