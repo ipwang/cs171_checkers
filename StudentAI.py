@@ -8,10 +8,10 @@ from BoardClasses import Board
 import datetime
 import math
 
-turnTimer = 15
-exploreConst = 1.4
+turnTimer = 10
+exploreConst = 2
 simThreshold = 5
-defaultWins = 1
+defaultWins = 2
 defaultSims = 5
 defaultUCT = 1000
 
@@ -126,7 +126,7 @@ class StudentAI():
         for c in node.children:
             childrenMoves.append(c.move.seq)
         for m in moves:
-            if childrenMoves.count(m.seq) == 0:
+            if childrenMoves.count(m.seq) == 0:         #Get all available moves for node, then find the leaf node to expand
                 toMove = m
                 break
 
@@ -226,5 +226,4 @@ class StudentAI():
                 break
             i += 1
         self.root = self.root.children[i]
-#        self.color = self.opponent[self.color]
         return move
