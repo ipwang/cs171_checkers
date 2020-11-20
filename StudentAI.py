@@ -16,7 +16,7 @@ DEFAULT_UCT = 1000
 FEW_MOVES = 4
 SHORT_TURN = 7
 FULL_TURN = 12
-
+DEPTH_LEVEL = 10
 
 class Node():
     def __init__(self, color, move, parent=None):
@@ -103,8 +103,7 @@ class StudentAI():
                 self.board.make_move(maxNode.move, ptr.color)
             ptr = maxNode
 
-        # Node is leaf node
-        return ptr  # Same thing as line 135
+        return ptr
 
     def expand(self, node) -> Node:
         moves = self.flatten(self.board.get_all_possible_moves(node.color))
@@ -149,42 +148,8 @@ class StudentAI():
         color = child.color
         winner = None
         counter = 0
-        '''
-        while self.board.is_win(players[color]) == 0:
-            moves = self.flatten(self.board.get_all_possible_moves(color))
-            if len(moves) != 0:
-                #player has moves
-
-                # choose random move to simulate
-                #i = randint(0, len(moves) - 1)
-                #self.board.make_move(moves[i], color)
-
-                # choose move with heuristic (the first one)
-                """
-                scores = []
-                for i in range(len(moves)):
-                    scores.append(self.heuristic(moves[i], color))
-                maxScore = -1
-                moveIndex = 0
-                for j in range(len(scores)):
-                    if scores[j] > maxScore:
-                        maxScore = scores[j]
-                        moveIndex = j
-                self.board.make_move(moves[moveIndex], color)
-                # print("all moves:", moves)
-                # print("all scores:", scores)
-                # print("move simulated: ", moves[moveIndex])
-                # print("score of move simulated: ", scores[moveIndex])
-                """
-
-                color = self.opponent[color]
-                counter += 1
-            else:
-                #player doesnt have moves, but game hasn't ended yet
-                color = self.opponent[color]
-        '''
         depth = 0
-        while self.board.is_win(players[color]) == 0 or depth == 10:
+        while self.board.is_win(players[color]) == 0 or depth == DEPTH_LEVEL:
             moves = self.flatten(self.board.get_all_possible_moves(color))
             if len(moves) != 0:
                 # player has moves
@@ -230,20 +195,10 @@ class StudentAI():
             self.turnDuration = FULL_TURN
 
         while (self.isTimeLeft()):
-            # print("board before select")
-            # self.board.show_board()
             parent = self.select()
-            # print("board after select")
-            # self.board.show_board()
             expand = self.expand(parent)  # TODO check if expand() returns None
-            # print("board after expand")
-            # self.board.show_board()
             result = self.simulate(expand)
-            # print("board after simulation")
-            # self.board.show_board()
             self.backProp(result, expand)
-            # print("board after backprop (same as before select)")
-            # self.board.show_board()
 
         bestMove = None  # self.root.children[i].move
         if len(self.root.children) == 0:
@@ -295,11 +250,7 @@ class StudentAI():
         else:
             move = self.MCTS(moves)
 
-        # print("num moves avail:", len(moves))
         # print("num real sims at root: ", self.root.sims)
-        # print("player whose turn: ", self.color)
-
-        # self.board.show_board()
         self.board.make_move(move, self.color)
 
         # update root (own move)
