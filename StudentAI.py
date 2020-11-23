@@ -78,35 +78,49 @@ class StudentAI():
             return True
         return False
 
-    def select(self) -> Node:
-        maxNode = self.root
-        maxUct = -1
+    def select(self, moves) -> Node:
         ptr = self.root
+        maxNode = None
+        maxNodes = []
         uct = None
-        found = False
 
-        while len(ptr.children) != 0:  # ptr is not a leaf node
-            moves = self.flatten(self.board.get_all_possible_moves(ptr.color))
-            for m in moves:
-                found = False
-                for c in ptr.children:
-                    if not found and m == c.move:
-                        uct = c.UCT()
-                        if uct > maxUct:
-                            maxUct = uct
-                            maxNode = c
-                        found = True
-                if not found:
-                    return ptr  # Node is a leaf node, return parent to expand later
+        while len(ptr.children) == len(moves):
+            # all of ptr's children have been expanded
+            # iterate through all children moves and set child with highest uct value as ptr (and update board)
+            maxNodes.clear()
+            maxUct = -1
+            for c in ptr.children:
+                uct = c.UCT()
+                if uct > maxUct:
+                    maxUct = uct
+                    maxNodes.clear()
+                    maxNodes.append(c)
+                elif uct == maxUct:
+                    maxUct = uct
+                    maxNodes.append(c)
 
-            if maxNode.move != -1:
-                self.board.make_move(maxNode.move, ptr.color)
+            i = randint(0, len(maxNodes) - 1)
+            maxNode = maxNodes[i]
+
+            self.board.make_move(maxNode.move, ptr.color)
             ptr = maxNode
+            moves = self.flatten(self.board.get_all_possible_moves(self.opponent[ptr.color]))
+            if len(moves) == 0:
+                # no moves possible
+                # TODO alternatively: move up using parent pointers to a parent with 1+ child?
+                # set as sentinel value that gets checked in MCTS
+                return -1
 
         return ptr
 
+
     def expand(self, node) -> Node:
+        '''
+        Assumes node has unexpanded children (fix assumption: initial toMove to None and fix
+        '''
         moves = self.flatten(self.board.get_all_possible_moves(node.color))
+
+        # print("inside expand: len of moves is ", len(moves))
         toMove = moves[0]  # TODO change to improve time?
 
         childrenMoves = []
@@ -121,7 +135,7 @@ class StudentAI():
 
         child = Node(self.opponent[node.color], toMove, node)
         node.children.append(child)
-        self.board.make_move(toMove, node.color)  # ADDED
+        self.board.make_move(toMove, node.color)
         return child
 
     def heuristic(self, move, turn) -> int:
@@ -185,8 +199,13 @@ class StudentAI():
                 child.upWins()
             child = child.parent
             counter += 1
+        # child is the root
+        child.upSims()
+        if result != child.color:
+            child.upWins()
+
         for i in range(counter):
-            self.board.undo()  # Added
+            self.board.undo()
 
     def MCTS(self, moves) -> Move:
         if len(moves) <= FEW_MOVES:
@@ -195,10 +214,11 @@ class StudentAI():
             self.turnDuration = FULL_TURN
 
         while (self.isTimeLeft()):
-            parent = self.select()
-            expand = self.expand(parent)  # TODO check if expand() returns None
-            result = self.simulate(expand)
-            self.backProp(result, expand)
+            parent = self.select(moves)
+            if parent != -1:
+                expand = self.expand(parent)  # TODO check if expand() returns None
+                result = self.simulate(expand)
+                self.backProp(result, expand)
 
         bestMove = None  # self.root.children[i].move
         if len(self.root.children) == 0:
@@ -250,8 +270,15 @@ class StudentAI():
         else:
             move = self.MCTS(moves)
 
-        # print("num real sims at root: ", self.root.sims)
+        # TODO remove these print statements for AI_Runner
+        print("player's turn: ", self.color)
+        print("len moves", len(moves))
         self.board.make_move(move, self.color)
+        # TODO remove these print statements for AI_Runner
+        print("len children", len(self.root.children))
+        print("num real wins at root: ", self.root.wins)
+        print("num real sims at root: ", self.root.sims)
+        print("move chosen: ", move)
 
         # update root (own move)
         if len(moves) != 1:
