@@ -9,9 +9,9 @@ import datetime
 import math
 
 EXPLORE_CONSTANT = 2
-SIM_THRESHOLD = 5
-DEFAULT_WIN = 2
-DEFAULT_SIM = 5
+SIM_THRESHOLD = 3 #5
+DEFAULT_WIN = 9 #2
+DEFAULT_SIM = 10 #5
 DEFAULT_UCT = 1000
 FEW_MOVES = 4
 SHORT_TURN = 7
@@ -105,11 +105,11 @@ class StudentAI():
             self.board.make_move(maxNode.move, ptr.color)
             ptr = maxNode
             moves = self.flatten(self.board.get_all_possible_moves(self.opponent[ptr.color]))
-            if len(moves) == 0:
-                # no moves possible
-                # TODO alternatively: move up using parent pointers to a parent with 1+ child?
-                # set as sentinel value that gets checked in MCTS
-                return -1
+            # if len(moves) == 0:
+            #     # no moves possible
+            #     # TODO alternatively: move up using parent pointers to a parent with 1+ child?
+            #     # set as sentinel value that gets checked in MCTS
+            #     return -1
 
         return ptr
 
@@ -152,9 +152,41 @@ class StudentAI():
         return num
 
 
-    def heuristic2(self) -> int:
+    def count_heuristic(self) -> int:
         # heuristic counts for black-white
         return self.board.black_count - self.board.white_count
+
+
+    def king_heuristic(self):
+        '''
+        gives a higher score to boards that are closer to attaining more kings
+        king piece: 100 points each
+        man piece: 5*row
+        '''
+        score = 0
+        players = {0: ".", 1: "B", 2: "W"}
+        player = players[self.color]
+        board_row = self.board.row
+        board_col = self.board.col
+        board = self.board.board
+
+        for r in range(board_row):
+            for c in range(board_col):
+                piece = board[r][c]
+                if piece.color == player:
+                    #exists checker piece and color matches
+                    if piece.is_king:
+                        # piece is a king
+                        score += 100
+                    else:
+                        # piece is a man
+                        if self.color == 1:
+                            # black
+                            score += r*5
+                        else:
+                            # white
+                            score += 5*(board_row-r-1)
+        return score
 
 
     def simulate(self, child):
@@ -168,9 +200,21 @@ class StudentAI():
             if len(moves) != 0:
                 # player has moves
 
-                # choose random move to simulate
-                i = randint(0, len(moves) - 1)
-                self.board.make_move(moves[i], color)
+                # 1. choose random move to simulate
+                # i = randint(0, len(moves) - 1)
+                # self.board.make_move(moves[i], color)
+
+                # 2. choose move based on king's heuristic
+                maxScore = -1
+                m = randint(0, len(moves)-1) # default random
+                for i in range(len(moves)):
+                    self.board.make_move(moves[i], color)
+                    score = self.king_heuristic()
+                    if score > maxScore:
+                        maxScore = score
+                        m = i
+                    self.board.undo()
+                self.board.make_move(moves[m], color)
 
                 color = self.opponent[color]
                 counter += 1
@@ -180,7 +224,7 @@ class StudentAI():
             depth += 1
 
         if self.board.is_win(players[color]) == 0:
-            if self.heuristic2() > 0:
+            if self.count_heuristic() > 0:
                 winner = 1
             else:
                 winner = 2
@@ -215,10 +259,9 @@ class StudentAI():
 
         while (self.isTimeLeft()):
             parent = self.select(moves)
-            if parent != -1:
-                expand = self.expand(parent)  # TODO check if expand() returns None
-                result = self.simulate(expand)
-                self.backProp(result, expand)
+            expand = self.expand(parent)  # TODO check if expand() returns None
+            result = self.simulate(expand)
+            self.backProp(result, expand)
 
         bestMove = None  # self.root.children[i].move
         if len(self.root.children) == 0:
@@ -271,14 +314,14 @@ class StudentAI():
             move = self.MCTS(moves)
 
         # TODO remove these print statements for AI_Runner
-        print("player's turn: ", self.color)
-        print("len moves", len(moves))
+        # print("player's turn: ", self.color)
+        # print("len moves", len(moves))
         self.board.make_move(move, self.color)
         # TODO remove these print statements for AI_Runner
-        print("len children", len(self.root.children))
-        print("num real wins at root: ", self.root.wins)
-        print("num real sims at root: ", self.root.sims)
-        print("move chosen: ", move)
+        # print("len children", len(self.root.children))
+        # print("num real wins at root: ", self.root.wins)
+        # print("num real sims at root: ", self.root.sims)
+        # print("move chosen: ", move)
 
         # update root (own move)
         if len(moves) != 1:
