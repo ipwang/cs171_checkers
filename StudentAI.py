@@ -8,16 +8,16 @@ from BoardClasses import Board
 import datetime
 import math
 
+PLAYERS = {0: ".", 1: "B", 2: "W"}
 EXPLORE_CONSTANT = 2
-SIM_THRESHOLD = 3 #5
+SIM_THRESHOLD = 5
 DEFAULT_WIN = 9 #2
 DEFAULT_SIM = 10 #5
-# DEFAULT_UCT = 1000
 FEW_MOVES = 4
 SHORT_TURN = 7
 FULL_TURN = 10 #12
 DEPTH_LEVEL = 15 #10
-select_ctr = 0
+
 
 class Node():
     def __init__(self, color, move, parent=None):
@@ -57,20 +57,6 @@ class Node():
     def upSims(self):
         self.sims += 1
 
-'''
-def UCT(parent, child=None):
-    if parent is None:
-        sp = 100 # change to 1 or 2? see if that helps
-    else:
-        sp = parent.getSims()
-
-    if child is not None:
-        return child.getWins() / child.getSims() + EXPLORE_CONSTANT * math.sqrt(math.log(sp) / child.getSims())
-    else:
-        return DEFAULT_WIN / DEFAULT_SIM + EXPLORE_CONSTANT * math.sqrt(sp / DEFAULT_SIM)
-    # return self.wins / self.sims + EXPLORE_CONSTANT * math.sqrt((math.log(self.parent.getSims()) / self.getSims()))
-'''
-
 class StudentAI():
     def __init__(self, col, row, p):
         self.col = col
@@ -84,6 +70,7 @@ class StudentAI():
         self.root = Node(self.color, -1)
         self.startTurn = datetime.datetime.now()
         self.turnDuration = FULL_TURN
+        self.select_ctr = 0
 
     def flatten(self, ini_list) -> list:
         return sum(ini_list, [])
@@ -95,23 +82,19 @@ class StudentAI():
         return False
 
     def select(self, moves) -> Node:
-        # TODO breaks when someone wins
-        # even if we can detect the win first, what do?
-            # backtrack: may not find child that is valid,
-            # may have to go up multiple generatsion,
-            # may waste time
-        '''
-        # does not need mvoes param
+        # does not need moves param
         ptr = self.root
         maxNodes = []
+        self.select_ctr = 0
 
         while len(ptr.children) != 0:
             # ptr is not a leaf; it has some to all children/moves
-            moves = self.flatten(self.board.get_all_possible_moves(self.opponent[ptr.color]))
+            moves = self.flatten(self.board.get_all_possible_moves(ptr.color))
             if len(ptr.children) < len(moves):
                 # ptr has only expanded some children/moves
                 return ptr
 
+            # all children/moves have been expanded
             maxNodes.clear()
             maxUct = -1
             for c in ptr.children:
@@ -122,51 +105,31 @@ class StudentAI():
                     maxNodes.append(c)
                 elif uct == maxUct:
                     maxNodes.append(c)
-            i = randint(0, len(maxNodes) - 1)
+            i = randint(0, len(maxNodes) - 1) #raised InvalidMoveError
             maxNode = maxNodes[i]
 
-            self.board.make_move(maxNode.move, ptr.color)
+            # try:
+            self.board.make_move(maxNode.move, ptr.color) # TODO raised InvalidMoveError
+            # except:
+            #     print("error: InvalidMoveError")
+            #     return
+            self.select_ctr += 1
             ptr = maxNode
+
+        # check that ptr has children to expand (could be a terminal state)
+        moves = self.flatten(self.board.get_all_possible_moves(ptr.color))
+        if len(moves) == 0:
+            return -1
 
         return ptr
-        '''
 
         '''
-        # CODE SUBMITTED FOR MINIMAL AI; doesnt raise Index error in expand()
-        maxNode = self.root
-        maxUct = -1
-        ptr = self.root
-        uct = None
-        found = False
-        
-        while len(ptr.children) != 0:  # Node is not a leaf node
-            moves = self.flatten(self.board.get_all_possible_moves(self.color))
-            for m in moves:
-                found = False
-                for c in ptr.children:
-                    if not found and m == c.move:
-                        uct = c.UCT()
-                        if uct > maxUct:
-                            maxUct = uct
-                            maxNode = c
-                        found = True
-                if not found:
-                    return ptr  # Node is a leaf node, return parent to expand later
-            ptr = maxNode
-            self.color = self.opponent[self.color]
-            if maxNode.move != -1:
-                self.board.make_move(maxNode.move, self.color)
-        # Node is leaf node
-        return ptr  # Same thing as line 135
-        '''
-
-
         # CODE FROM PRE-THANKSGIVING; raises Index error in expand()
         ptr = self.root
         maxNode = None
         maxNodes = []
         uct = None
-        select_ctr = 0
+        self.select_ctr = 0
 
         while len(ptr.children) == len(moves):
             # all of ptr's children have been expanded
@@ -186,13 +149,12 @@ class StudentAI():
             i = randint(0, len(maxNodes) - 1)
             maxNode = maxNodes[i]
 
-            self.board.make_move(maxNode.move, ptr.color)
-            select_ctr += 1
+            self.board.make_move(maxNode.move, ptr.color) #raised InvalidMoveError
+            self.select_ctr += 1
 
             ptr = maxNode
             moves = self.flatten(self.board.get_all_possible_moves(self.opponent[ptr.color]))
-            players = {1: "B", 2: "W"}
-            if self.board.is_win(players[self.opponent[ptr.color]])!= 0:
+            if self.board.is_win(PLAYERS[self.opponent[ptr.color]]) != 0:
                 # TODO invalid move error!!!
                 # someone won
                 # add and check attribute in Node class to see if it is terminal
@@ -206,6 +168,7 @@ class StudentAI():
             #     return -1
 
         return ptr
+        '''
 
 
     def expand(self, node) -> Node:
@@ -214,8 +177,7 @@ class StudentAI():
         '''
         moves = self.flatten(self.board.get_all_possible_moves(node.color))
 
-        # print("inside expand: len of moves is ", len(moves))
-        toMove = moves[0]  # TODO change to improve time?
+        toMove = moves[0]
 
         childrenMoves = []
         for c in node.children:
@@ -232,37 +194,30 @@ class StudentAI():
         self.board.make_move(toMove, node.color)
         return child
 
-    def heuristic(self, move, turn) -> int:
-        # heuristic that is turn-dependent (ie whose turn it currently is)
-        self.board.make_move(move, turn)
-        num = 0
-        if turn == 1:
-            # black
-            num = self.board.black_count - self.board.white_count
-        else:
-            # white
-            num = self.board.white_count - self.board.black_count
-        self.board.undo()
-        return num
-
 
     def count_heuristic(self) -> int:
         # heuristic counts for black-white
         return self.board.black_count - self.board.white_count
 
 
-    def king_heuristic(self):
+    def king_heuristic(self, turn, prev_black, prev_white):
         # gives a higher score to boards that are closer to attaining more kings
+        kings_worth = 10
+        mans_worth = 1
+        eaten_worth = -2
         # TODO improve: change point values? calculate by specific pieces?
-        kings_worth = 100
-        mans_worth = 5
-
         score = 0
-        players = {0: ".", 1: "B", 2: "W"}
-        player = players[self.color]
+        player = PLAYERS[turn]
         board_row = self.board.row
         board_col = self.board.col
         board = self.board.board
+
+        if turn == 1:
+            # black
+            score -= eaten_worth*(prev_black-self.board.black_count)
+        else:
+            # white
+            score -= eaten_worth*(prev_white-self.board.white_count)
 
         for r in range(board_row):
             for c in range(board_col):
@@ -272,9 +227,10 @@ class StudentAI():
                     if piece.is_king:
                         # piece is a king
                         score += kings_worth
+                        # TODO update so score doesnt purely exist while king is alive?
                     else:
                         # piece is a man
-                        if self.color == 1:
+                        if turn == 1:
                             # black
                             score += r*mans_worth
                         else:
@@ -284,27 +240,24 @@ class StudentAI():
 
 
     def simulate(self, child):
-        players = {1: "B", 2: "W"}
         color = child.color
         winner = None
         counter = 0
         depth = 0
 
-        while self.board.is_win(players[color]) == 0 or depth <= DEPTH_LEVEL:
+        while self.board.is_win(PLAYERS[color]) == 0 or depth <= DEPTH_LEVEL:
             moves = self.flatten(self.board.get_all_possible_moves(color))
             if len(moves) != 0:
                 # player has moves
 
-                # 1. choose random move to simulate
-                # i = randint(0, len(moves) - 1)
-                # self.board.make_move(moves[i], color)
-
-                # 2. choose move based on king's heuristic
+                # choose move based on king's heuristic
+                prev_black = self.board.black_count
+                prev_white = self.board.white_count
                 maxScore = -1
                 m = randint(0, len(moves)-1) # default random
                 for i in range(len(moves)):
                     self.board.make_move(moves[i], color)
-                    score = self.king_heuristic()
+                    score = self.king_heuristic(color, prev_black, prev_white)
                     if score > maxScore:
                         maxScore = score
                         m = i
@@ -318,13 +271,16 @@ class StudentAI():
                 color = self.opponent[color]
             depth += 1
 
-        if self.board.is_win(players[color]) == 0:
+        if self.board.is_win(PLAYERS[color]) == 0:
             if self.count_heuristic() > 0:
                 winner = 1
             else:
                 winner = 2
         else:
-            winner = self.board.is_win(players[color])
+            winner = self.board.is_win(PLAYERS[color])
+            if winner == -1:
+                # simulation ended with a tie: ties are considered wins
+                winner = self.color
         while counter != 0:
             self.board.undo()
             counter -= 1
@@ -332,18 +288,13 @@ class StudentAI():
 
     def backProp(self, result, child):
         counter = 0
-        # print("child.move: ", child.move)
-        # print("num real wins: ", child.wins)
-        # print("num real sims: ", child.sims)
         while child != self.root:
             child.upSims()
             if result != child.color:
                 child.upWins()
             child = child.parent
             counter += 1
-            # print("child.move: ", child.move)
-            # print("num real wins: ", child.wins)
-            # print("num real sims: ", child.sims)
+            # self.board.undo()
 
         # child is the root
         child.upSims()
@@ -366,10 +317,10 @@ class StudentAI():
                 result = self.simulate(expand)
                 self.backProp(result, expand)
             else:
-                for i in range(select_ctr):
+                for i in range(self.select_ctr):
                     self.board.undo()
 
-        bestMove = None  # self.root.children[i].move
+        bestMove = None
         if len(self.root.children) == 0:
             index = randint(0, len(moves) - 1)
             bestMove = moves[index]
