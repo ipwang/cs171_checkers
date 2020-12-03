@@ -10,13 +10,13 @@ import math
 
 PLAYERS = {0: ".", 1: "B", 2: "W"}
 EXPLORE_CONSTANT = 2
-SIM_THRESHOLD = 5
-DEFAULT_WIN = 9 #2
-DEFAULT_SIM = 10 #5
+SIM_THRESHOLD = 4
+DEFAULT_WIN = 9
+DEFAULT_SIM = 10
 FEW_MOVES = 4
-SHORT_TURN = 7
+SHORT_TURN = 3
 FULL_TURN = 10 #12
-DEPTH_LEVEL = 15 #10
+DEPTH_LEVEL = 15
 
 
 class Node():
@@ -42,12 +42,12 @@ class Node():
             return -1
 
     def getWins(self):
-        if self.sims < SIM_THRESHOLD:
+        if self.sims <= SIM_THRESHOLD:
             return DEFAULT_WIN
         return self.wins
 
     def getSims(self):
-        if self.sims < SIM_THRESHOLD:
+        if self.sims <= SIM_THRESHOLD:
             return DEFAULT_SIM
         return self.sims
 
@@ -70,7 +70,6 @@ class StudentAI():
         self.root = Node(self.color, -1)
         self.startTurn = datetime.datetime.now()
         self.turnDuration = FULL_TURN
-        self.select_ctr = 0
 
     def flatten(self, ini_list) -> list:
         return sum(ini_list, [])
@@ -81,11 +80,9 @@ class StudentAI():
             return True
         return False
 
-    def select(self, moves) -> Node:
-        # does not need moves param
+    def select(self) -> Node:
         ptr = self.root
         maxNodes = []
-        self.select_ctr = 0
 
         while len(ptr.children) != 0:
             # ptr is not a leaf; it has some to all children/moves
@@ -108,77 +105,18 @@ class StudentAI():
             i = randint(0, len(maxNodes) - 1) #raised InvalidMoveError
             maxNode = maxNodes[i]
 
-            # try:
             self.board.make_move(maxNode.move, ptr.color) # TODO raised InvalidMoveError
-            # except:
-            #     print("error: InvalidMoveError")
-            #     return
-            self.select_ctr += 1
             ptr = maxNode
-
-        # check that ptr has children to expand (could be a terminal state)
-        moves = self.flatten(self.board.get_all_possible_moves(ptr.color))
-        if len(moves) == 0:
-            return -1
-
         return ptr
-
-        '''
-        # CODE FROM PRE-THANKSGIVING; raises Index error in expand()
-        ptr = self.root
-        maxNode = None
-        maxNodes = []
-        uct = None
-        self.select_ctr = 0
-
-        while len(ptr.children) == len(moves):
-            # all of ptr's children have been expanded
-            # iterate through all children moves and set child with highest uct value as ptr (and update board)
-            maxNodes.clear()
-            maxUct = -1
-            for c in ptr.children:
-                uct = c.UCT()
-                if uct > maxUct:
-                    maxUct = uct
-                    maxNodes.clear()
-                    maxNodes.append(c)
-                elif uct == maxUct:
-                    maxUct = uct
-                    maxNodes.append(c)
-
-            i = randint(0, len(maxNodes) - 1)
-            maxNode = maxNodes[i]
-
-            self.board.make_move(maxNode.move, ptr.color) #raised InvalidMoveError
-            self.select_ctr += 1
-
-            ptr = maxNode
-            moves = self.flatten(self.board.get_all_possible_moves(self.opponent[ptr.color]))
-            if self.board.is_win(PLAYERS[self.opponent[ptr.color]]) != 0:
-                # TODO invalid move error!!!
-                # someone won
-                # add and check attribute in Node class to see if it is terminal
-                # in MCTS: if is terminal, DO SMTH
-                return -1
-
-            # if len(moves) == 0:
-            #     # no moves possible
-            #     # TODO alternatively: move up using parent pointers to a parent with 1+ child?
-            #     # set as sentinel value that gets checked in MCTS
-            #     return -1
-
-        return ptr
-        '''
 
 
     def expand(self, node) -> Node:
-        '''
-        Assumes node has unexpanded children (fix assumption: initial toMove to None and fix
-        '''
+        # if node has no children/moves, return itself
         moves = self.flatten(self.board.get_all_possible_moves(node.color))
+        if len(moves) == 0:
+            return node
 
         toMove = moves[0]
-
         childrenMoves = []
         for c in node.children:
             childrenMoves.append(c.move.seq)
@@ -205,7 +143,7 @@ class StudentAI():
         kings_worth = 10
         mans_worth = 1
         eaten_worth = -2
-        # TODO improve: change point values? calculate by specific pieces?
+
         score = 0
         player = PLAYERS[turn]
         board_row = self.board.row
@@ -223,7 +161,7 @@ class StudentAI():
             for c in range(board_col):
                 piece = board[r][c]
                 if piece.color == player:
-                    #exists checker piece and color matches
+                    # checker piece exists and color matches
                     if piece.is_king:
                         # piece is a king
                         score += kings_worth
@@ -287,22 +225,18 @@ class StudentAI():
         return winner
 
     def backProp(self, result, child):
-        counter = 0
         while child != self.root:
             child.upSims()
             if result != child.color:
                 child.upWins()
             child = child.parent
-            counter += 1
-            # self.board.undo()
+            self.board.undo()
 
         # child is the root
         child.upSims()
         if result != child.color:
             child.upWins()
 
-        for i in range(counter):
-            self.board.undo()
 
     def MCTS(self, moves) -> Move:
         if len(moves) <= FEW_MOVES:
@@ -311,14 +245,10 @@ class StudentAI():
             self.turnDuration = FULL_TURN
 
         while (self.isTimeLeft()):
-            parent = self.select(moves)
-            if parent != -1:
-                expand = self.expand(parent)
-                result = self.simulate(expand)
-                self.backProp(result, expand)
-            else:
-                for i in range(self.select_ctr):
-                    self.board.undo()
+            parent = self.select()
+            expand = self.expand(parent)
+            result = self.simulate(expand)
+            self.backProp(result, expand)
 
         bestMove = None
         if len(self.root.children) == 0:
