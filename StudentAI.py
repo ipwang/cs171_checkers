@@ -7,16 +7,17 @@ from BoardClasses import Board
 
 import datetime
 import math
+from copy import deepcopy
 
 PLAYERS = {0: ".", 1: "B", 2: "W"}
-EXPLORE_CONSTANT = 2
+EXPLORE_CONSTANT = 2 #lower? prevent exploration during crucial times?
 SIM_THRESHOLD = 4
 DEFAULT_WIN = 9
 DEFAULT_SIM = 10
 FEW_MOVES = 4
-SHORT_TURN = 3
-FULL_TURN = 10 #12
-DEPTH_LEVEL = 15
+SHORT_TURN = 3 #10
+FULL_TURN = 20 #12
+DEPTH_LEVEL = 25 #15
 
 
 class Node():
@@ -183,24 +184,27 @@ class StudentAI():
         counter = 0
         depth = 0
 
-        while self.board.is_win(PLAYERS[color]) == 0 or depth <= DEPTH_LEVEL:
-            moves = self.flatten(self.board.get_all_possible_moves(color))
+        # make deep copy of board (thrown away at end of this function)
+        board = deepcopy(self.board)
+
+        while board.is_win(PLAYERS[color]) == 0 or depth <= DEPTH_LEVEL:
+            moves = self.flatten(board.get_all_possible_moves(color))
             if len(moves) != 0:
                 # player has moves
 
                 # choose move based on king's heuristic
-                prev_black = self.board.black_count
-                prev_white = self.board.white_count
+                prev_black = board.black_count
+                prev_white = board.white_count
                 maxScore = -1
                 m = randint(0, len(moves)-1) # default random
                 for i in range(len(moves)):
-                    self.board.make_move(moves[i], color)
+                    board.make_move(moves[i], color)
                     score = self.king_heuristic(color, prev_black, prev_white)
                     if score > maxScore:
                         maxScore = score
                         m = i
-                    self.board.undo()
-                self.board.make_move(moves[m], color)
+                    board.undo()
+                board.make_move(moves[m], color)
 
                 color = self.opponent[color]
                 counter += 1
@@ -209,20 +213,19 @@ class StudentAI():
                 color = self.opponent[color]
             depth += 1
 
-        if self.board.is_win(PLAYERS[color]) == 0:
+        if board.is_win(PLAYERS[color]) == 0:
             if self.count_heuristic() > 0:
                 winner = 1
             else:
                 winner = 2
         else:
-            winner = self.board.is_win(PLAYERS[color])
+            winner = board.is_win(PLAYERS[color])
             if winner == -1:
                 # simulation ended with a tie: ties are considered wins
                 winner = self.color
-        while counter != 0:
-            self.board.undo()
-            counter -= 1
+
         return winner
+
 
     def backProp(self, result, child):
         while child != self.root:
@@ -305,8 +308,8 @@ class StudentAI():
         # print("len moves", len(moves))
         self.board.make_move(move, self.color)
         # print("len children", len(self.root.children))
-        # print("num real wins at root: ", self.root.wins)
-        # print("num real sims at root: ", self.root.sims)
+        print("num real wins at root: ", self.root.wins)
+        print("num real sims at root: ", self.root.sims)
         # print("move chosen: ", move)
 
         # update root (own move)
