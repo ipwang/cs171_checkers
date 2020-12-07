@@ -10,14 +10,14 @@ import math
 from copy import deepcopy
 
 PLAYERS = {0: ".", 1: "B", 2: "W"}
-EXPLORE_CONSTANT = 2 #lower? prevent exploration during crucial times?
+EXPLORE_CONSTANT = 2
 SIM_THRESHOLD = 4
 DEFAULT_WIN = 9
 DEFAULT_SIM = 10
 FEW_MOVES = 4
-SHORT_TURN = 3 #10
+SHORT_TURN = 3
 FULL_TURN = 20 #12
-DEPTH_LEVEL = 25 #15
+DEPTH_LEVEL = 25
 
 
 class Node():
@@ -214,10 +214,18 @@ class StudentAI():
             depth += 1
 
         if board.is_win(PLAYERS[color]) == 0:
-            if self.count_heuristic() > 0:
+            # if self.count_heuristic() > 0:
+            #     winner = 1
+            # else:
+            #     winner = 2
+            # TODO (done) board TBD/unclear as 0.5
+            count = self.count_heuristic()
+            if count > 0:
                 winner = 1
-            else:
+            elif count < 0:
                 winner = 2
+            else:
+                winner = 0.5
         else:
             winner = board.is_win(PLAYERS[color])
             if winner == -1:
@@ -230,10 +238,12 @@ class StudentAI():
     def backProp(self, result, child):
         while child != self.root:
             child.upSims()
-            if result != child.color:
+            if result == 0.5 and child.color == self.color: #TODO (done): handle TBD results
+                child.wins += result
+            elif result != child.color:
                 child.upWins()
             child = child.parent
-            self.board.undo()
+            self.board.undo() # TODO if delete (even with deepcopy in getMove, will break code)
 
         # child is the root
         child.upSims()
@@ -298,18 +308,21 @@ class StudentAI():
             self.root.color = 1
 
         moves = self.flatten(self.board.get_all_possible_moves(self.root.color))
+        # boardOrig = self.board
         if len(moves) == 1:
             move = moves[0]
         else:
+            # boardOrig = deepcopy(self.board)
             move = self.MCTS(moves)
 
+        # self.board = boardOrig
         # TODO remove these print statements for AI_Runner
         # print("player's turn: ", self.color)
         # print("len moves", len(moves))
         self.board.make_move(move, self.color)
         # print("len children", len(self.root.children))
-        print("num real wins at root: ", self.root.wins)
-        print("num real sims at root: ", self.root.sims)
+        # print("num real wins at root: ", self.root.wins)
+        # print("num real sims at root: ", self.root.sims)
         # print("move chosen: ", move)
 
         # update root (own move)
