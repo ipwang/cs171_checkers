@@ -11,13 +11,13 @@ from copy import deepcopy
 
 PLAYERS = {0: ".", 1: "B", 2: "W"}
 EXPLORE_CONSTANT = 2
-SIM_THRESHOLD = 4
-DEFAULT_WIN = 9
+SIM_THRESHOLD = 4 #10
+DEFAULT_WIN = 9 #7
 DEFAULT_SIM = 10
 FEW_MOVES = 4
-SHORT_TURN = 3
-FULL_TURN = 20 #12
-DEPTH_LEVEL = 25
+SHORT_TURN = 3 #8
+FULL_TURN = 18
+DEPTH_LEVEL = 18
 
 
 class Node():
@@ -81,6 +81,7 @@ class StudentAI():
             return True
         return False
 
+
     def select(self) -> Node:
         ptr = self.root
         maxNodes = []
@@ -91,23 +92,26 @@ class StudentAI():
             if len(ptr.children) < len(moves):
                 # ptr has only expanded some children/moves
                 return ptr
+            if len(moves) == 0:
+                # len(ptr.children) == 1, since its nonzero
+                ptr = ptr.children[0]
+            else:
+                # all children/moves have been expanded
+                maxNodes.clear()
+                maxUct = -1
+                for c in ptr.children:
+                    uct = c.UCT()
+                    if uct > maxUct:
+                        maxUct = uct
+                        maxNodes.clear()
+                        maxNodes.append(c)
+                    elif uct == maxUct:
+                        maxNodes.append(c)
+                i = randint(0, len(maxNodes) - 1)
+                maxNode = maxNodes[i]
 
-            # all children/moves have been expanded
-            maxNodes.clear()
-            maxUct = -1
-            for c in ptr.children:
-                uct = c.UCT()
-                if uct > maxUct:
-                    maxUct = uct
-                    maxNodes.clear()
-                    maxNodes.append(c)
-                elif uct == maxUct:
-                    maxNodes.append(c)
-            i = randint(0, len(maxNodes) - 1) #raised InvalidMoveError
-            maxNode = maxNodes[i]
-
-            self.board.make_move(maxNode.move, ptr.color) # TODO raised InvalidMoveError
-            ptr = maxNode
+                self.board.make_move(maxNode.move, ptr.color) # TODO raised InvalidMoveError
+                ptr = maxNode
         return ptr
 
 
@@ -115,14 +119,23 @@ class StudentAI():
         # if node has no children/moves, return itself
         moves = self.flatten(self.board.get_all_possible_moves(node.color))
         if len(moves) == 0:
-            return node
+            if self.board.is_win(PLAYERS[node.color]) != 0:
+                # no moves since game ended
+                return node
+            else:
+                # no moves since blocked
+                oppMoves = self.board.get_all_possible_moves(self.opponent[node.color])
+                if len(oppMoves) != 0:
+                    # opponent has moves available, so make node here and return it
+                    child = Node(self.opponent[node.color], -1, node)
+                    node.children.append(child)
+                    return child
 
         toMove = moves[0]
         childrenMoves = []
         for c in node.children:
             childrenMoves.append(c.move.seq)
         for m in moves:
-            # TODO: improve time
             # looks for first move in list of all moves that hasn't been expanded
             if childrenMoves.count(m.seq) == 0:
                 toMove = m
@@ -139,7 +152,7 @@ class StudentAI():
         return self.board.black_count - self.board.white_count
 
 
-    def king_heuristic(self, turn, prev_black, prev_white):
+    def old_king_heuristic(self, turn, prev_black, prev_white):
         # gives a higher score to boards that are closer to attaining more kings
         kings_worth = 10
         mans_worth = 1
@@ -178,72 +191,107 @@ class StudentAI():
         return score
 
 
+    def king_heuristic(self):
+        # gives a higher score to boards that are closer to attaining more kings
+        kings_worth = 10
+        mans_worth = 1
+        # eaten_worth = -2
+        # TODO improve: change point values? calculate by specific pieces?
+        bScore = 0
+        wScore = 0
+        # player = PLAYERS[turn]
+        board_row = self.board.row
+        board_col = self.board.col
+        board = self.board.board
+
+        # bScore -= eaten_worth*(prev_black-self.board.black_count)
+        # wScore -= eaten_worth*(prev_white-self.board.white_count)
+
+        for r in range(board_row):
+            for c in range(board_col):
+                piece = board[r][c]
+                if piece.color == "B":
+                    #exists checker piece and color matches
+                    if piece.is_king:
+                        # piece is a king
+                        bScore += kings_worth
+                        # TODO update so score doesnt purely exist while king is alive?
+                    else:
+                        # piece is a man
+                        # black
+                        bScore += r*mans_worth
+                if piece.color == "W": # WHITE
+                    if piece.is_king:
+                        wScore += kings_worth
+                    else:
+                        wScore += r*mans_worth
+        return bScore, wScore # RETURN TUPLE OF SCORES, (BLACK, WHITE)
+
+
     def simulate(self, child):
         color = child.color
-        winner = None
-        counter = 0
+        winner = self.board.is_win(PLAYERS[color])
         depth = 0
 
-        # make deep copy of board (thrown away at end of this function)
-        board = deepcopy(self.board)
-
-        while board.is_win(PLAYERS[color]) == 0 or depth <= DEPTH_LEVEL:
-            moves = self.flatten(board.get_all_possible_moves(color))
+        while winner == 0 and depth <= DEPTH_LEVEL:
+            moves = self.flatten(self.board.get_all_possible_moves(color))
             if len(moves) != 0:
                 # player has moves
 
-                # choose move based on king's heuristic
-                prev_black = board.black_count
-                prev_white = board.white_count
+                # 1. choose move randomly
+                m = randint(0, len(moves) - 1)
+                self.board.make_move(moves[m], color)
+
+                '''
+                # 2. choose move based on king's heuristic
+                prev_black = self.board.black_count
+                prev_white = self.board.white_count
                 maxScore = -1
-                m = randint(0, len(moves)-1) # default random
+                m = randint(0, len(moves) - 1)  # default random
                 for i in range(len(moves)):
-                    board.make_move(moves[i], color)
+                    self.board.make_move(moves[i], color)
                     score = self.king_heuristic(color, prev_black, prev_white)
                     if score > maxScore:
                         maxScore = score
                         m = i
-                    board.undo()
-                board.make_move(moves[m], color)
-
-                color = self.opponent[color]
-                counter += 1
-            else:
-                # player doesnt have moves, but game hasn't ended yet
-                color = self.opponent[color]
+                    self.board.undo()
+                self.board.make_move(moves[m], color)
+                '''
+            color = self.opponent[color]
             depth += 1
+            winner = self.board.is_win(PLAYERS[color])
 
-        if board.is_win(PLAYERS[color]) == 0:
-            # if self.count_heuristic() > 0:
-            #     winner = 1
-            # else:
-            #     winner = 2
-            # TODO (done) board TBD/unclear as 0.5
-            count = self.count_heuristic()
-            if count > 0:
+        if winner == 0:
+            '''
+            # 3. evaluate unfinished game with count heuristic
+            if self.count_heuristic() > 0:
                 winner = 1
-            elif count < 0:
-                winner = 2
             else:
-                winner = 0.5
+                winner = 2
+            '''
+            # 4. evaluate unfinished game with king heuristic
+            scores = self.king_heuristic()
+            if scores[0] > scores[1]:  # Compares black with white
+                winner = 1
+            else:
+                winner = 2
         else:
-            winner = board.is_win(PLAYERS[color])
             if winner == -1:
                 # simulation ended with a tie: ties are considered wins
                 winner = self.color
-
         return winner
 
 
     def backProp(self, result, child):
         while child != self.root:
             child.upSims()
-            if result == 0.5 and child.color == self.color: #TODO (done): handle TBD results
+            if result == 0.5 and child.color == self.color:
+                # handle TBD results
                 child.wins += result
             elif result != child.color:
+                # originally the only if branch
                 child.upWins()
             child = child.parent
-            self.board.undo() # TODO if delete (even with deepcopy in getMove, will break code)
 
         # child is the root
         child.upSims()
@@ -257,11 +305,13 @@ class StudentAI():
         else:
             self.turnDuration = FULL_TURN
 
+        boardOrig = deepcopy(self.board)
         while (self.isTimeLeft()):
             parent = self.select()
             expand = self.expand(parent)
             result = self.simulate(expand)
             self.backProp(result, expand)
+            self.board = deepcopy(boardOrig)
 
         bestMove = None
         if len(self.root.children) == 0:
@@ -308,21 +358,18 @@ class StudentAI():
             self.root.color = 1
 
         moves = self.flatten(self.board.get_all_possible_moves(self.root.color))
-        # boardOrig = self.board
         if len(moves) == 1:
             move = moves[0]
         else:
-            # boardOrig = deepcopy(self.board)
             move = self.MCTS(moves)
 
-        # self.board = boardOrig
         # TODO remove these print statements for AI_Runner
-        # print("player's turn: ", self.color)
+        print("player's turn: ", self.color)
         # print("len moves", len(moves))
         self.board.make_move(move, self.color)
         # print("len children", len(self.root.children))
-        # print("num real wins at root: ", self.root.wins)
-        # print("num real sims at root: ", self.root.sims)
+        print("num real wins at root: ", self.root.wins)
+        print("num real sims at root: ", self.root.sims)
         # print("move chosen: ", move)
 
         # update root (own move)
