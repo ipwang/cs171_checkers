@@ -11,11 +11,11 @@ from copy import deepcopy
 
 PLAYERS = {0: ".", 1: "B", 2: "W"}
 EXPLORE_CONSTANT = 2
-SIM_THRESHOLD = 4 #10
+SIM_THRESHOLD = 10
 DEFAULT_WIN = 9 #7
 DEFAULT_SIM = 10
 FEW_MOVES = 4
-SHORT_TURN = 3 #8
+SHORT_TURN = 8
 FULL_TURN = 18
 DEPTH_LEVEL = 18
 
@@ -110,9 +110,21 @@ class StudentAI():
                 i = randint(0, len(maxNodes) - 1)
                 maxNode = maxNodes[i]
 
-                self.board.make_move(maxNode.move, ptr.color) # TODO raised InvalidMoveError
+                self.board.make_move(maxNode.move, ptr.color)
                 ptr = maxNode
         return ptr
+
+
+    def atLeastOneMove(self, color) -> bool:
+        player = PLAYERS[color]
+        board = self.board.board
+
+        for r in range(self.board.row):
+            for c in range(self.board.col):
+                if board[r][c].color == player and len(board[r][c].get_possible_moves(self.board)) != 0:
+                    # there exists a piece that has at least one move
+                    return True
+        return False
 
 
     def expand(self, node) -> Node:
@@ -124,7 +136,7 @@ class StudentAI():
                 return node
             else:
                 # no moves since blocked
-                oppMoves = self.board.get_all_possible_moves(self.opponent[node.color])
+                oppMoves = self.atLeastOneMove(self.opponent[node.color])
                 if len(oppMoves) != 0:
                     # opponent has moves available, so make node here and return it
                     child = Node(self.opponent[node.color], -1, node)
@@ -192,33 +204,22 @@ class StudentAI():
 
 
     def king_heuristic(self):
-        # gives a higher score to boards that are closer to attaining more kings
         kings_worth = 10
         mans_worth = 1
-        # eaten_worth = -2
-        # TODO improve: change point values? calculate by specific pieces?
         bScore = 0
         wScore = 0
-        # player = PLAYERS[turn]
+
         board_row = self.board.row
         board_col = self.board.col
         board = self.board.board
 
-        # bScore -= eaten_worth*(prev_black-self.board.black_count)
-        # wScore -= eaten_worth*(prev_white-self.board.white_count)
-
         for r in range(board_row):
             for c in range(board_col):
                 piece = board[r][c]
-                if piece.color == "B":
-                    #exists checker piece and color matches
+                if piece.color == "B": # BLACK
                     if piece.is_king:
-                        # piece is a king
                         bScore += kings_worth
-                        # TODO update so score doesnt purely exist while king is alive?
                     else:
-                        # piece is a man
-                        # black
                         bScore += r*mans_worth
                 if piece.color == "W": # WHITE
                     if piece.is_king:
@@ -270,9 +271,12 @@ class StudentAI():
                 winner = 2
             '''
             # 4. evaluate unfinished game with king heuristic
-            scores = self.king_heuristic()
-            if scores[0] > scores[1]:  # Compares black with white
+            scoreBlack, scoreWhite = self.king_heuristic()
+            if scoreBlack > scoreWhite:  # Compares black with white
                 winner = 1
+            elif scoreBlack == scoreWhite:
+                # too hard to determine real winner (TBD)
+                winner = 0.5
             else:
                 winner = 2
         else:
