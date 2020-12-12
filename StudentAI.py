@@ -5,19 +5,21 @@ from BoardClasses import Board
 # The following part should be completed by students.
 # Students can modify anything except the class name and exisiting functions and varibles.
 
-import datetime
-import math
+from random import seed
+from datetime import datetime
+from math import sqrt
+from math import log
 from copy import deepcopy
 
 PLAYERS = {0: ".", 1: "B", 2: "W"}
 EXPLORE_CONSTANT = 2
-SIM_THRESHOLD = 10
-DEFAULT_WIN = 9 #7
-DEFAULT_SIM = 10
+SIM_THRESHOLD = 4 #10
+DEFAULT_WIN = 9 #14
+DEFAULT_SIM = 10 #15
 FEW_MOVES = 4
-SHORT_TURN = 8
-FULL_TURN = 18
-DEPTH_LEVEL = 18
+SHORT_TURN = 3 #9
+FULL_TURN = 20
+DEPTH_LEVEL = 25
 
 
 class Node():
@@ -34,7 +36,7 @@ class Node():
             sp = 100
         else:
             sp = self.parent.getSims()
-        return self.getWins() / self.getSims() + EXPLORE_CONSTANT * math.sqrt(math.log(sp) / self.getSims())
+        return self.getWins() / self.getSims() + EXPLORE_CONSTANT * sqrt(log(sp) / self.getSims())
 
     def getWinRate(self):
         if self.sims != 0:
@@ -69,14 +71,15 @@ class StudentAI():
         self.opponent = {1: 2, 2: 1}
         self.color = 2
         self.root = Node(self.color, -1)
-        self.startTurn = datetime.datetime.now()
+        self.startTurn = datetime.now()
         self.turnDuration = FULL_TURN
+        seed(datetime.now())
 
     def flatten(self, ini_list) -> list:
         return sum(ini_list, [])
 
     def isTimeLeft(self):
-        time = datetime.datetime.now()
+        time = datetime.now()
         if (time - self.startTurn).seconds < self.turnDuration:
             return True
         return False
@@ -136,8 +139,7 @@ class StudentAI():
                 return node
             else:
                 # no moves since blocked
-                oppMoves = self.atLeastOneMove(self.opponent[node.color])
-                if len(oppMoves) != 0:
+                if self.atLeastOneMove(self.opponent[node.color]):
                     # opponent has moves available, so make node here and return it
                     child = Node(self.opponent[node.color], -1, node)
                     node.children.append(child)
@@ -203,15 +205,21 @@ class StudentAI():
         return score
 
 
-    def king_heuristic(self):
+    def king_heuristic(self, lastMove):
         kings_worth = 10
         mans_worth = 1
+        # eaten_worth = -2
         bScore = 0
         wScore = 0
 
         board_row = self.board.row
         board_col = self.board.col
         board = self.board.board
+
+        # tempBoard = deepcopy(self.board)
+        # tempBoard.undo()
+        # bScore -= eaten_worth * (tempBoard.black_count - self.board.black_count)
+        # wScore -= eaten_worth * (tempBoard.white_count - self.board.white_count)
 
         for r in range(board_row):
             for c in range(board_col):
@@ -225,7 +233,7 @@ class StudentAI():
                     if piece.is_king:
                         wScore += kings_worth
                     else:
-                        wScore += r*mans_worth
+                        wScore += (board_row-r-1)*mans_worth
         return bScore, wScore # RETURN TUPLE OF SCORES, (BLACK, WHITE)
 
 
@@ -238,11 +246,10 @@ class StudentAI():
             moves = self.flatten(self.board.get_all_possible_moves(color))
             if len(moves) != 0:
                 # player has moves
-
+                '''
                 # 1. choose move randomly
                 m = randint(0, len(moves) - 1)
                 self.board.make_move(moves[m], color)
-
                 '''
                 # 2. choose move based on king's heuristic
                 prev_black = self.board.black_count
@@ -251,13 +258,13 @@ class StudentAI():
                 m = randint(0, len(moves) - 1)  # default random
                 for i in range(len(moves)):
                     self.board.make_move(moves[i], color)
-                    score = self.king_heuristic(color, prev_black, prev_white)
+                    score = self.old_king_heuristic(color, prev_black, prev_white)
                     if score > maxScore:
                         maxScore = score
                         m = i
                     self.board.undo()
                 self.board.make_move(moves[m], color)
-                '''
+
             color = self.opponent[color]
             depth += 1
             winner = self.board.is_win(PLAYERS[color])
@@ -271,7 +278,7 @@ class StudentAI():
                 winner = 2
             '''
             # 4. evaluate unfinished game with king heuristic
-            scoreBlack, scoreWhite = self.king_heuristic()
+            scoreBlack, scoreWhite = self.king_heuristic(moves[m])
             if scoreBlack > scoreWhite:  # Compares black with white
                 winner = 1
             elif scoreBlack == scoreWhite:
@@ -340,7 +347,7 @@ class StudentAI():
         return i
 
     def get_move(self, move):
-        self.startTurn = datetime.datetime.now()
+        self.startTurn = datetime.now()
         if len(move) != 0:
             self.board.make_move(move, self.opponent[self.color])
 
@@ -368,12 +375,12 @@ class StudentAI():
             move = self.MCTS(moves)
 
         # TODO remove these print statements for AI_Runner
-        print("player's turn: ", self.color)
+        # print("player's turn: ", self.color)
         # print("len moves", len(moves))
         self.board.make_move(move, self.color)
         # print("len children", len(self.root.children))
-        print("num real wins at root: ", self.root.wins)
-        print("num real sims at root: ", self.root.sims)
+        # print("num real wins at root: ", self.root.wins)
+        # print("num real sims at root: ", self.root.sims)
         # print("move chosen: ", move)
 
         # update root (own move)
