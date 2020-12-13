@@ -13,13 +13,13 @@ from copy import deepcopy
 
 PLAYERS = {0: ".", 1: "B", 2: "W"}
 EXPLORE_CONSTANT = 2
-SIM_THRESHOLD = 4 #10
-DEFAULT_WIN = 9 #14
+SIM_THRESHOLD = 10 #4 #10
+DEFAULT_WIN = 7 #9 #14
 DEFAULT_SIM = 10 #15
 FEW_MOVES = 4
-SHORT_TURN = 3 #9
-FULL_TURN = 20
-DEPTH_LEVEL = 25
+SHORT_TURN = 8 #3 #9
+FULL_TURN = 18 # 20
+DEPTH_LEVEL = 17 #25
 
 
 class Node():
@@ -205,7 +205,7 @@ class StudentAI():
         return score
 
 
-    def king_heuristic(self, lastMove):
+    def king_heuristic(self):
         kings_worth = 10
         mans_worth = 1
         # eaten_worth = -2
@@ -246,7 +246,7 @@ class StudentAI():
             moves = self.flatten(self.board.get_all_possible_moves(color))
             if len(moves) != 0:
                 # player has moves
-                '''
+
                 # 1. choose move randomly
                 m = randint(0, len(moves) - 1)
                 self.board.make_move(moves[m], color)
@@ -264,7 +264,7 @@ class StudentAI():
                         m = i
                     self.board.undo()
                 self.board.make_move(moves[m], color)
-
+                '''
             color = self.opponent[color]
             depth += 1
             winner = self.board.is_win(PLAYERS[color])
@@ -278,7 +278,7 @@ class StudentAI():
                 winner = 2
             '''
             # 4. evaluate unfinished game with king heuristic
-            scoreBlack, scoreWhite = self.king_heuristic(moves[m])
+            scoreBlack, scoreWhite = self.king_heuristic()
             if scoreBlack > scoreWhite:  # Compares black with white
                 winner = 1
             elif scoreBlack == scoreWhite:
