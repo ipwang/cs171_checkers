@@ -13,13 +13,13 @@ from copy import deepcopy
 
 PLAYERS = {0: ".", 1: "B", 2: "W"}
 EXPLORE_CONSTANT = 2
-SIM_THRESHOLD = 10 #4 #10
-DEFAULT_WIN = 7 #9 #14
-DEFAULT_SIM = 10 #15
+SIM_THRESHOLD = 10
+DEFAULT_WIN = 8
+DEFAULT_SIM = 10
 FEW_MOVES = 4
-SHORT_TURN = 8 #3 #9
-FULL_TURN = 18 # 20
-DEPTH_LEVEL = 17 #25
+SHORT_TURN = 8
+FULL_TURN = 18
+DEPTH_LEVEL = 16
 
 
 class Node():
@@ -74,6 +74,7 @@ class StudentAI():
         self.startTurn = datetime.now()
         self.turnDuration = FULL_TURN
         seed(datetime.now())
+        self.path = [] #AMAF
 
     def flatten(self, ini_list) -> list:
         return sum(ini_list, [])
@@ -114,6 +115,7 @@ class StudentAI():
                 maxNode = maxNodes[i]
 
                 self.board.make_move(maxNode.move, ptr.color)
+                self.path.append(maxNode.move) #AMAF
                 ptr = maxNode
         return ptr
 
@@ -158,6 +160,7 @@ class StudentAI():
         child = Node(self.opponent[node.color], toMove, node)
         node.children.append(child)
         self.board.make_move(toMove, node.color)
+        self.path.append(toMove) #AMAF
         return child
 
 
@@ -250,6 +253,7 @@ class StudentAI():
                 # 1. choose move randomly
                 m = randint(0, len(moves) - 1)
                 self.board.make_move(moves[m], color)
+                self.path.append(moves[m]) #AMAF
                 '''
                 # 2. choose move based on king's heuristic
                 prev_black = self.board.black_count
@@ -294,6 +298,8 @@ class StudentAI():
 
 
     def backProp(self, result, child):
+        '''
+        # 1. original backprop
         while child != self.root:
             child.upSims()
             if result == 0.5 and child.color == self.color:
@@ -308,7 +314,27 @@ class StudentAI():
         child.upSims()
         if result != child.color:
             child.upWins()
+        '''
+        # 2. Attempt at AMAF:
+        while child != self.root:
+            child.upSims()
+            if result == 0.5 and child.color == self.color:
+                # handle TBD results
+                child.wins += result
+            elif result != child.color:
+                # originally the only if branch; adjusted for AMAF (but not above)
+                child.upWins()
+                siblings = child.parent.children
+                for sib in siblings:
+                    if self.path.count(sib.move) != 0 and child.move != sib.move:
+                        sib.upSims()
+                        sib.upWins()
+            child = child.parent
 
+            # child is the root
+        child.upSims()
+        if result != child.color:
+            child.upWins()
 
     def MCTS(self, moves) -> Move:
         if len(moves) <= FEW_MOVES:
@@ -318,6 +344,7 @@ class StudentAI():
 
         boardOrig = deepcopy(self.board)
         while (self.isTimeLeft()):
+            self.path.clear() #AMAF
             parent = self.select()
             expand = self.expand(parent)
             result = self.simulate(expand)
@@ -339,9 +366,13 @@ class StudentAI():
         return bestMove
 
     def findIndexWithMove(self, m) -> int:
+        '''
+        returns index of move m amongst children of the root
+        if returns 1 + the len of the children, the move was not found (not yet expanded)
+        '''
         i = 0
         while i != len(self.root.children):
-            if self.root.children[i].move == m:
+            if self.root.children[i].move.seq == m.seq:
                 break
             i += 1
         return i
@@ -359,6 +390,7 @@ class StudentAI():
                 if i != len(self.root.children):
                     # set to existing child
                     self.root = self.root.children[i]
+                    # self.root.sims = self.root.wins #RESET
                 else:
                     # add new child
                     new_root = Node(self.color, move, self.root)
@@ -368,6 +400,8 @@ class StudentAI():
             self.color = 1
             self.root.color = 1
 
+        # print("(pre) num real wins at root: ", self.root.wins)
+        # print("(pre) num real sims at root: ", self.root.sims)
         moves = self.flatten(self.board.get_all_possible_moves(self.root.color))
         if len(moves) == 1:
             move = moves[0]
@@ -379,14 +413,15 @@ class StudentAI():
         # print("len moves", len(moves))
         self.board.make_move(move, self.color)
         # print("len children", len(self.root.children))
-        # print("num real wins at root: ", self.root.wins)
-        # print("num real sims at root: ", self.root.sims)
+        # print("(post) num real wins at root: ", self.root.wins)
+        # print("(post) num real sims at root: ", self.root.sims)
         # print("move chosen: ", move)
 
         # update root (own move)
         if len(moves) != 1:
             # set to existing child
             self.root = self.root.children[self.findIndexWithMove(move)]
+            # self.root.sims = self.root.wins  #RESET
         else:
             # add new child
             new_root = Node(self.opponent[self.color], move, self.root)
